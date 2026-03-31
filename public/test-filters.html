@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Filter Testing Tool - Power BI</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 20px;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1600px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .content {
+            padding: 30px;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+
+        .section {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+            border-left: 4px solid #667eea;
+        }
+
+        .section h2 {
+            color: #333;
+            margin-bottom: 15px;
+            font-size: 18px;
+        }
+
+        .filter-input {
+            width: 100%;
+            padding: 10px;
+            margin: 5px 0;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-family: monospace;
+        }
+
+        button {
+            padding: 10px 20px;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            margin: 5px;
+            transition: all 0.3s ease;
+        }
+
+        button:hover {
+            background: #5568d3;
+            transform: translateY(-2px);
+        }
+
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .output {
+            background: #1e1e1e;
+            color: #d4d4d4;
+            padding: 15px;
+            border-radius: 6px;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            max-height: 400px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            margin-top: 10px;
+        }
+
+        #reportContainer {
+            grid-column: 1 / -1;
+            width: 100%;
+            height: 700px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            margin-top: 20px;
+        }
+
+        .status {
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+            font-size: 13px;
+        }
+
+        .status.success { background: #d4edda; color: #155724; }
+        .status.error { background: #f8d7da; color: #721c24; }
+        .status.warning { background: #fff3cd; color: #856404; }
+        .status.info { background: #d1ecf1; color: #0c5460; }
+
+        .preset-btn {
+            background: #28a745;
+            font-size: 12px;
+            padding: 8px 16px;
+        }
+
+        .preset-btn:hover {
+            background: #218838;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🧪 Power BI Filter Testing Tool</h1>
+            <p>Test different filter configurations to find what works</p>
+        </div>
+
+        <div class="content">
+            <div class="section">
+                <h2>🎯 Filter Configuration</h2>
+                <label>Table Name:</label>
+                <input type="text" id="tableName" class="filter-input" value="defaultdb workspaces" placeholder="e.g., Sales">
+                
+                <label>Column Name:</label>
+                <input type="text" id="columnName" class="filter-input" value="id" placeholder="e.g., Country">
+                
+                <label>Value (comma-separated for multiple):</label>
+                <input type="text" id="filterValue" class="filter-input" value="27" placeholder="e.g., USA, Canada">
+                
+                <label>Value Type:</label>
+                <select id="valueType" class="filter-input">
+                    <option value="number">Number</option>
+                    <option value="string">String</option>
+                </select>
+
+                <div style="margin-top: 15px;">
+                    <button id="loadWithFilterBtn">Load Report with Filter</button>
+                    <button id="loadWithoutFilterBtn">Load Report without Filter</button>
+                </div>
+
+                <div style="margin-top: 10px;">
+                    <button class="preset-btn" id="testNumericBtn">Test: id = 27 (number)</button>
+                    <button class="preset-btn" id="testStringBtn">Test: id = "27" (string)</button>
+                </div>
+
+                <div id="loadStatus"></div>
+            </div>
+
+            <div class="section">
+                <h2>🔍 Filter Diagnostics</h2>
+                <button id="checkFiltersBtn" disabled>Check Applied Filters</button>
+                <button id="getPagesBtn" disabled>Get Pages Info</button>
+                <button id="getVisualsBtn" disabled>Get Visuals Info</button>
+                <div id="diagnosticStatus"></div>
+                <div class="output" id="diagnosticOutput"></div>
+            </div>
+
+            <div class="section" style="grid-column: 1 / -1;">
+                <h2>📊 Console Log</h2>
+                <div class="output" id="consoleLog"></div>
+            </div>
+
+            <div id="reportContainer"></div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/powerbi-client@2.23.1/dist/powerbi.min.js"></script>
+
+    <script>
+        let embeddedReport = null;
+        const consoleLog = document.getElementById('consoleLog');
+        const diagnosticOutput = document.getElementById('diagnosticOutput');
+        const loadStatus = document.getElementById('loadStatus');
+        const diagnosticStatus = document.getElementById('diagnosticStatus');
+        const reportContainer = document.getElementById('reportContainer');
+
+        // Override console.log to capture logs
+        const originalLog = console.log;
+        const originalError = console.error;
+        const originalWarn = console.warn;
+
+        function addToConsoleLog(message, type = 'log') {
+            const timestamp = new Date().toLocaleTimeString();
+            const color = type === 'error' ? '#ff6b6b' : type === 'warn' ? '#ffd93d' : '#6bcf7f';
+            consoleLog.innerHTML += `<span style="color: ${color}">[${timestamp}] ${message}</span>\n`;
+            consoleLog.scrollTop = consoleLog.scrollHeight;
+        }
+
+        console.log = function(...args) {
+            originalLog.apply(console, args);
+            addToConsoleLog(args.join(' '), 'log');
+        };
+
+        console.error = function(...args) {
+            originalError.apply(console, args);
+            addToConsoleLog('ERROR: ' + args.join(' '), 'error');
+        };
+
+        console.warn = function(...args) {
+            originalWarn.apply(console, args);
+            addToConsoleLog('WARN: ' + args.join(' '), 'warn');
+        };
+
+        function showStatus(element, message, type = 'info') {
+            element.innerHTML = `<div class="status ${type}">${message}</div>`;
+        }
+
+        function displayDiagnostic(data) {
+            diagnosticOutput.textContent = JSON.stringify(data, null, 2);
+        }
+
+        async function loadReport(withFilter = true) {
+            try {
+                const tableName = document.getElementById('tableName').value.trim();
+                const columnName = document.getElementById('columnName').value.trim();
+                const filterValue = document.getElementById('filterValue').value.trim();
+                const valueType = document.getElementById('valueType').value;
+
+                console.log('='.repeat(60));
+                console.log('🚀 Starting report load...');
+                console.log(`Filter enabled: ${withFilter}`);
+
+                let filters = [];
+                
+                if (withFilter) {
+                    // Parse values (handle comma-separated)
+                    const rawValues = filterValue.split(',').map(v => v.trim());
+                    const values = valueType === 'number' 
+                        ? rawValues.map(v => parseFloat(v) || v)
+                        : rawValues;
+
+                    filters = [{
+                        $schema: "http://powerbi.com/product/schema#basic",
+                        target: {
+                            table: tableName,
+                            column: columnName
+                        },
+                        operator: "In",
+                        values: values,
+                        filterType: 1
+                    }];
+
+                    console.log('📋 Filter to apply:');
+                    console.log(JSON.stringify(filters, null, 2));
+                }
+
+                showStatus(loadStatus, '⏳ Fetching embed token...', 'info');
+
+                const response = await fetch('/api/getEmbedInfo', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ filters: filters })
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
+                const embedData = await response.json();
+                console.log('✓ Embed data received');
+
+                const powerbi = window.powerbi;
+                const models = window['powerbi-client'].models;
+
+                const embedConfig = {
+                    type: 'report',
+                    id: embedData.reportId,
+                    embedUrl: embedData.embedUrl,
+                    accessToken: embedData.embedToken,
+                    tokenType: models.TokenType.Embed,
+                    permissions: models.Permissions.Read,
+                    settings: {
+                        filterPaneEnabled: true,  // Enable to see filters
+                        navContentPaneEnabled: true
+                    }
+                };
+
+                // Apply filters if provided
+                if (embedData.filters && embedData.filters.length > 0) {
+                    embedConfig.filters = embedData.filters;
+                    console.log('✓ Adding filters to embed config');
+                }
+
+                reportContainer.innerHTML = '';
+                embeddedReport = powerbi.embed(reportContainer, embedConfig);
+
+                embeddedReport.on('loaded', async function() {
+                    console.log('✅ Report loaded successfully');
+                    showStatus(loadStatus, '✅ Report loaded successfully', 'success');
+                    
+                    // Enable diagnostic buttons
+                    document.getElementById('checkFiltersBtn').disabled = false;
+                    document.getElementById('getPagesBtn').disabled = false;
+                    document.getElementById('getVisualsBtn').disabled = false;
+
+                    // Auto-check filters
+                    try {
+                        const appliedFilters = await embeddedReport.getFilters();
+                        console.log('📊 Filters currently on report:', appliedFilters.length);
+                        
+                        if (appliedFilters.length === 0 && withFilter) {
+                            console.error('❌ FILTER NOT APPLIED!');
+                            console.error('Possible reasons:');
+                            console.error('  1. Table name is incorrect (case-sensitive)');
+                            console.error('  2. Column name is incorrect (case-sensitive)');
+                            console.error('  3. Value type mismatch (try switching number/string)');
+                            console.error('  4. Value does not exist in the dataset');
+                            showStatus(loadStatus, '⚠️ Report loaded but filter was NOT applied! Check console.', 'warning');
+                        } else if (appliedFilters.length > 0) {
+                            console.log('✅ Filter successfully applied!');
+                            console.log(JSON.stringify(appliedFilters, null, 2));
+                            showStatus(loadStatus, `✅ Report loaded with ${appliedFilters.length} filter(s) applied`, 'success');
+                        }
+                    } catch (err) {
+                        console.error('Error checking filters:', err);
+                    }
+                });
+
+                embeddedReport.on('rendered', function() {
+                    console.log('✓ Report rendered');
+                });
+
+                embeddedReport.on('error', function(event) {
+                    console.error('Report error:', event.detail);
+                    showStatus(loadStatus, `❌ Error: ${event.detail.message}`, 'error');
+                });
+
+            } catch (error) {
+                console.error('Failed to load report:', error);
+                showStatus(loadStatus, `❌ Error: ${error.message}`, 'error');
+            }
+        }
+
+        // Event Listeners
+        document.getElementById('loadWithFilterBtn').addEventListener('click', () => loadReport(true));
+        document.getElementById('loadWithoutFilterBtn').addEventListener('click', () => loadReport(false));
+
+        document.getElementById('testNumericBtn').addEventListener('click', () => {
+            document.getElementById('tableName').value = 'defaultdb workspaces';
+            document.getElementById('columnName').value = 'id';
+            document.getElementById('filterValue').value = '27';
+            document.getElementById('valueType').value = 'number';
+            loadReport(true);
+        });
+
+        document.getElementById('testStringBtn').addEventListener('click', () => {
+            document.getElementById('tableName').value = 'defaultdb workspaces';
+            document.getElementById('columnName').value = 'id';
+            document.getElementById('filterValue').value = '27';
+            document.getElementById('valueType').value = 'string';
+            loadReport(true);
+        });
+
+        document.getElementById('checkFiltersBtn').addEventListener('click', async () => {
+            if (!embeddedReport) return;
+            try {
+                showStatus(diagnosticStatus, '⏳ Checking filters...', 'info');
+                const filters = await embeddedReport.getFilters();
+                displayDiagnostic({
+                    totalFilters: filters.length,
+                    filters: filters,
+                    message: filters.length === 0 ? 'No filters applied' : 'Filters are active'
+                });
+                showStatus(diagnosticStatus, `✅ Found ${filters.length} filter(s)`, 'success');
+            } catch (error) {
+                showStatus(diagnosticStatus, `❌ Error: ${error.message}`, 'error');
+            }
+        });
+
+        document.getElementById('getPagesBtn').addEventListener('click', async () => {
+            if (!embeddedReport) return;
+            try {
+                showStatus(diagnosticStatus, '⏳ Fetching pages...', 'info');
+                const pages = await embeddedReport.getPages();
+                const pageInfo = pages.map(p => ({
+                    name: p.name,
+                    displayName: p.displayName,
+                    isActive: p.isActive
+                }));
+                displayDiagnostic({ totalPages: pages.length, pages: pageInfo });
+                showStatus(diagnosticStatus, `✅ Found ${pages.length} page(s)`, 'success');
+            } catch (error) {
+                showStatus(diagnosticStatus, `❌ Error: ${error.message}`, 'error');
+            }
+        });
+
+        document.getElementById('getVisualsBtn').addEventListener('click', async () => {
+            if (!embeddedReport) return;
+            try {
+                showStatus(diagnosticStatus, '⏳ Fetching visuals...', 'info');
+                const pages = await embeddedReport.getPages();
+                const activePage = pages.find(p => p.isActive);
+                const visuals = await activePage.getVisuals();
+                
+                const visualInfo = visuals.map(v => ({
+                    name: v.name,
+                    title: v.title,
+                    type: v.type
+                }));
+                
+                displayDiagnostic({ 
+                    page: activePage.displayName,
+                    totalVisuals: visuals.length, 
+                    visuals: visualInfo 
+                });
+                showStatus(diagnosticStatus, `✅ Found ${visuals.length} visual(s)`, 'success');
+            } catch (error) {
+                showStatus(diagnosticStatus, `❌ Error: ${error.message}`, 'error');
+            }
+        });
+
+        console.log('🧪 Filter Testing Tool Ready');
+        console.log('Configure your filter and click "Load Report with Filter"');
+    </script>
+</body>
+</html>

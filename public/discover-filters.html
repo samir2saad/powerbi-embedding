@@ -1,0 +1,484 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Power BI Filter Discovery Tool</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 20px;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 28px;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            opacity: 0.9;
+            font-size: 14px;
+        }
+
+        .content {
+            padding: 30px;
+        }
+
+        .section {
+            margin-bottom: 30px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            border-left: 4px solid #667eea;
+        }
+
+        .section h2 {
+            color: #333;
+            margin-bottom: 15px;
+            font-size: 20px;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-bottom: 20px;
+        }
+
+        button {
+            padding: 12px 24px;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.3s ease;
+        }
+
+        button:hover {
+            background: #5568d3;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+
+        button:active {
+            transform: translateY(0);
+        }
+
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .output {
+            background: #1e1e1e;
+            color: #d4d4d4;
+            padding: 20px;
+            border-radius: 6px;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            max-height: 500px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+
+        .output:empty::before {
+            content: 'Results will appear here...';
+            color: #888;
+            font-style: italic;
+        }
+
+        .status {
+            padding: 10px 15px;
+            border-radius: 6px;
+            margin-bottom: 15px;
+            font-size: 14px;
+        }
+
+        .status.info {
+            background: #e3f2fd;
+            color: #1976d2;
+            border-left: 4px solid #1976d2;
+        }
+
+        .status.success {
+            background: #e8f5e9;
+            color: #388e3c;
+            border-left: 4px solid #388e3c;
+        }
+
+        .status.error {
+            background: #ffebee;
+            color: #c62828;
+            border-left: 4px solid #c62828;
+        }
+
+        .copy-btn {
+            background: #28a745;
+            padding: 8px 16px;
+            font-size: 12px;
+            margin-top: 10px;
+        }
+
+        .copy-btn:hover {
+            background: #218838;
+        }
+
+        #reportContainer {
+            width: 100%;
+            height: 600px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            margin-top: 20px;
+        }
+
+        .info-box {
+            background: #fff3cd;
+            border: 1px solid #ffc107;
+            border-radius: 6px;
+            padding: 15px;
+            margin-bottom: 20px;
+        }
+
+        .info-box strong {
+            color: #856404;
+        }
+
+        code {
+            background: #f4f4f4;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: 'Courier New', monospace;
+            color: #c7254e;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🔍 Power BI Filter Discovery Tool</h1>
+            <p>Discover available filters in your Power BI report</p>
+        </div>
+
+        <div class="content">
+            <div class="info-box">
+                <strong>ℹ️ Instructions:</strong><br>
+                1. Click "Load Report" to embed your Power BI report<br>
+                2. Use the buttons below to discover available pages, visuals, and filters<br>
+                3. Copy the filter structure and use it in your <code>app.js</code> file
+            </div>
+
+            <div class="section">
+                <h2>📊 Report Loading</h2>
+                <div class="button-group">
+                    <button id="loadReportBtn">Load Report</button>
+                </div>
+                <div id="loadStatus"></div>
+            </div>
+
+            <div class="section">
+                <h2>🔎 Discovery Tools</h2>
+                <div class="button-group">
+                    <button id="getPagesBtn" disabled>Get Pages</button>
+                    <button id="getFiltersBtn" disabled>Get Report Filters</button>
+                    <button id="getPageFiltersBtn" disabled>Get Page Filters</button>
+                    <button id="getDatasetBtn" disabled>Get Dataset Info</button>
+                </div>
+                <div id="discoveryStatus"></div>
+            </div>
+
+            <div class="section">
+                <h2>📋 Results</h2>
+                <button class="copy-btn" id="copyBtn" style="display: none;">📋 Copy to Clipboard</button>
+                <div class="output" id="output"></div>
+            </div>
+
+            <div class="section">
+                <h2>🖼️ Embedded Report</h2>
+                <div id="reportContainer"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Power BI JavaScript SDK -->
+    <script src="https://cdn.jsdelivr.net/npm/powerbi-client@2.23.1/dist/powerbi.min.js"></script>
+
+    <script>
+        let embeddedReport = null;
+        const output = document.getElementById('output');
+        const loadStatus = document.getElementById('loadStatus');
+        const discoveryStatus = document.getElementById('discoveryStatus');
+        const reportContainer = document.getElementById('reportContainer');
+        const copyBtn = document.getElementById('copyBtn');
+
+        // Button references
+        const loadReportBtn = document.getElementById('loadReportBtn');
+        const getPagesBtn = document.getElementById('getPagesBtn');
+        const getFiltersBtn = document.getElementById('getFiltersBtn');
+        const getPageFiltersBtn = document.getElementById('getPageFiltersBtn');
+        const getDatasetBtn = document.getElementById('getDatasetBtn');
+
+        function showStatus(element, message, type = 'info') {
+            element.innerHTML = `<div class="status ${type}">${message}</div>`;
+        }
+
+        function displayOutput(data) {
+            output.textContent = JSON.stringify(data, null, 2);
+            copyBtn.style.display = 'block';
+        }
+
+        function enableDiscoveryButtons() {
+            getPagesBtn.disabled = false;
+            getFiltersBtn.disabled = false;
+            getPageFiltersBtn.disabled = false;
+            getDatasetBtn.disabled = false;
+        }
+
+        // Load Report
+        loadReportBtn.addEventListener('click', async () => {
+            try {
+                showStatus(loadStatus, '⏳ Loading report...', 'info');
+                loadReportBtn.disabled = true;
+
+                const response = await fetch('/api/getEmbedInfo', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ filters: [] })
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
+                const embedData = await response.json();
+                
+                const powerbi = window.powerbi;
+                const models = window['powerbi-client'].models;
+
+                const embedConfig = {
+                    type: 'report',
+                    id: embedData.reportId,
+                    embedUrl: embedData.embedUrl,
+                    accessToken: embedData.embedToken,
+                    tokenType: models.TokenType.Embed,
+                    permissions: models.Permissions.Read,
+                    settings: {
+                        filterPaneEnabled: true,
+                        navContentPaneEnabled: true
+                    }
+                };
+
+                reportContainer.innerHTML = '';
+                embeddedReport = powerbi.embed(reportContainer, embedConfig);
+
+                embeddedReport.on('loaded', () => {
+                    showStatus(loadStatus, '✅ Report loaded successfully!', 'success');
+                    enableDiscoveryButtons();
+                });
+
+                embeddedReport.on('error', (event) => {
+                    showStatus(loadStatus, `❌ Error: ${event.detail.message}`, 'error');
+                });
+
+            } catch (error) {
+                showStatus(loadStatus, `❌ Error loading report: ${error.message}`, 'error');
+                loadReportBtn.disabled = false;
+            }
+        });
+
+        // Get Pages
+        getPagesBtn.addEventListener('click', async () => {
+            if (!embeddedReport) return;
+            
+            try {
+                showStatus(discoveryStatus, '⏳ Fetching pages...', 'info');
+                const pages = await embeddedReport.getPages();
+                
+                const pageInfo = pages.map(page => ({
+                    name: page.name,
+                    displayName: page.displayName,
+                    isActive: page.isActive
+                }));
+
+                displayOutput({
+                    totalPages: pages.length,
+                    pages: pageInfo
+                });
+                
+                showStatus(discoveryStatus, `✅ Found ${pages.length} page(s)`, 'success');
+            } catch (error) {
+                showStatus(discoveryStatus, `❌ Error: ${error.message}`, 'error');
+            }
+        });
+
+        // Get Report Filters
+        getFiltersBtn.addEventListener('click', async () => {
+            if (!embeddedReport) return;
+            
+            try {
+                showStatus(discoveryStatus, '⏳ Fetching report filters...', 'info');
+                const filters = await embeddedReport.getFilters();
+                
+                displayOutput({
+                    message: 'Report-level filters',
+                    totalFilters: filters.length,
+                    filters: filters,
+                    usage: 'Copy the filter structure and modify the values in app.js'
+                });
+                
+                showStatus(discoveryStatus, `✅ Found ${filters.length} report filter(s)`, 'success');
+            } catch (error) {
+                showStatus(discoveryStatus, `❌ Error: ${error.message}`, 'error');
+            }
+        });
+
+        // Get Page Filters
+        getPageFiltersBtn.addEventListener('click', async () => {
+            if (!embeddedReport) return;
+            
+            try {
+                showStatus(discoveryStatus, '⏳ Fetching page filters...', 'info');
+                const pages = await embeddedReport.getPages();
+                const activePage = pages.find(page => page.isActive);
+                
+                if (!activePage) {
+                    throw new Error('No active page found');
+                }
+
+                const filters = await activePage.getFilters();
+                const visuals = await activePage.getVisuals();
+                
+                const visualInfo = visuals.map(visual => ({
+                    name: visual.name,
+                    title: visual.title,
+                    type: visual.type
+                }));
+
+                displayOutput({
+                    message: 'Active page filters and visuals',
+                    pageName: activePage.displayName,
+                    totalFilters: filters.length,
+                    filters: filters,
+                    totalVisuals: visuals.length,
+                    visuals: visualInfo,
+                    usage: 'Copy the filter structure and modify the values in app.js'
+                });
+                
+                showStatus(discoveryStatus, `✅ Found ${filters.length} page filter(s) and ${visuals.length} visual(s)`, 'success');
+            } catch (error) {
+                showStatus(discoveryStatus, `❌ Error: ${error.message}`, 'error');
+            }
+        });
+
+        // Get Dataset Info
+        getDatasetBtn.addEventListener('click', async () => {
+            if (!embeddedReport) return;
+            
+            try {
+                showStatus(discoveryStatus, '⏳ Fetching dataset information...', 'info');
+                const pages = await embeddedReport.getPages();
+                const activePage = pages.find(page => page.isActive);
+                
+                if (!activePage) {
+                    throw new Error('No active page found');
+                }
+
+                const visuals = await activePage.getVisuals();
+                
+                // Try to extract field information from visuals
+                const fieldsInfo = [];
+                
+                for (const visual of visuals) {
+                    try {
+                        // Get visual data
+                        const visualData = await visual.exportData(1); // 1 = Summarized data
+                        fieldsInfo.push({
+                            visualName: visual.name,
+                            visualTitle: visual.title,
+                            visualType: visual.type,
+                            note: 'Check the visual in Power BI Desktop to see exact table and column names'
+                        });
+                    } catch (err) {
+                        console.warn(`Could not export data from visual ${visual.name}:`, err);
+                    }
+                }
+
+                displayOutput({
+                    message: 'Dataset and Visual Information',
+                    instruction: 'To find exact table and column names:',
+                    steps: [
+                        '1. Open your report in Power BI Desktop',
+                        '2. Go to Model view or Data view',
+                        '3. Look at the Fields pane on the right',
+                        '4. Table names are the expandable sections',
+                        '5. Column names are listed under each table'
+                    ],
+                    visualsInReport: fieldsInfo,
+                    filterExample: {
+                        $schema: "http://powerbi.com/product/schema#basic",
+                        target: {
+                            table: "YourTableName",
+                            column: "YourColumnName"
+                        },
+                        operator: "In",
+                        values: ["Value1", "Value2"],
+                        filterType: 1
+                    }
+                });
+                
+                showStatus(discoveryStatus, `✅ Dataset information retrieved`, 'success');
+            } catch (error) {
+                showStatus(discoveryStatus, `❌ Error: ${error.message}`, 'error');
+            }
+        });
+
+        // Copy to Clipboard
+        copyBtn.addEventListener('click', () => {
+            const text = output.textContent;
+            navigator.clipboard.writeText(text).then(() => {
+                const originalText = copyBtn.textContent;
+                copyBtn.textContent = '✅ Copied!';
+                setTimeout(() => {
+                    copyBtn.textContent = originalText;
+                }, 2000);
+            }).catch(err => {
+                alert('Failed to copy: ' + err.message);
+            });
+        });
+
+        // Initialize
+        console.log('🔍 Filter Discovery Tool Ready');
+        console.log('Click "Load Report" to begin discovering filters');
+    </script>
+</body>
+</html>
