@@ -93,11 +93,98 @@ async function getReportDetails(accessToken) {
 }
 
 /**
- * API Endpoint: Get Embed Info
+ * Get Report Pages and Filters
  */
-app.get('/api/getEmbedInfo', async (req, res) => {
+async function getReportFilters(accessToken) {
+  try {
+    const reportUrl = `https://api.powerbi.com/v1.0/myorg/groups/${config.workspaceId}/reports/${config.reportId}/pages`;
+    
+    const response = await axios.get(reportUrl, {
+      headers: {
+        'Authorization': `Bearer ${accessToken}`
+      }
+    });
+
+    return response.data;
+  } catch (error) {
+    console.error('Error getting report pages:', error.response?.data || error.message);
+    return null;
+  }
+}
+
+/**
+ * Get Dataset Tables and Columns
+ */
+async function getDatasetSchema(accessToken, datasetId) {
+  try {
+    const datasetUrl = `https://api.powerbi.com/v1.0/myorg/datasets/${datasetId}`;
+    
+    const response = await axios.get(datasetUrl, {
+      headers: {
+        'Authorization': `Bearer ${accessToken}`
+      }
+    });
+
+    return response.data;
+  } catch (error) {
+    console.error('Error getting dataset schema:', error.response?.data || error.message);
+    return null;
+  }
+}
+
+/**
+ * API Endpoint: Get Available Filters
+ * Returns tables and columns available for filtering
+ */
+app.get('/api/getAvailableFilters', async (req, res) => {
+  try {
+    console.log('Fetching available filters...');
+    
+    // Get Azure AD Access Token
+    const accessToken = await getAzureAccessToken();
+    console.log('✓ Azure AD access token obtained');
+    
+    // Get Report Details
+    const reportDetails = await getReportDetails(accessToken);
+    console.log('✓ Report details retrieved');
+    
+    // Get Dataset Schema
+    const datasetSchema = await getDatasetSchema(accessToken, reportDetails.datasetId);
+    
+    // Get Report Pages (may contain filter info)
+    const pagesData = await getReportFilters(accessToken);
+    
+    res.json({
+      reportId: config.reportId,
+      reportName: reportDetails.name,
+      datasetId: reportDetails.datasetId,
+      datasetInfo: datasetSchema,
+      pagesInfo: pagesData,
+      instruction: 'Use the table and column names from datasetInfo.tables to configure your filters'
+    });
+    
+  } catch (error) {
+    console.error('Error in /api/getAvailableFilters:', error.message);
+    res.status(500).json({
+      error: 'Failed to get available filters',
+      message: error.message
+    });
+  }
+});
+
+/**
+ * API Endpoint: Get Embed Info
+ * Accepts optional filters in request body
+ */
+app.post('/api/getEmbedInfo', async (req, res) => {
   try {
     console.log('Fetching embed information...');
+    
+    // Extract filters from request body
+    const filters = req.body.filters || null;
+    if (filters) {
+      console.log('Filters received:', JSON.stringify(filters, null, 2));
+    }
     
     // Step 1: Get Azure AD Access Token
     const accessToken = await getAzureAccessToken();
@@ -110,6 +197,9 @@ app.get('/api/getEmbedInfo', async (req, res) => {
     // Step 3: Generate Power BI Embed Token
     const embedTokenData = await getPowerBIEmbedToken(accessToken);
     console.log('✓ Power BI embed token generated');
+    if (filters) {
+      console.log('✓ Filters will be applied on client-side:', filters);
+    }
     
     // Step 4: Return embed configuration
     const embedInfo = {
@@ -119,6 +209,8 @@ app.get('/api/getEmbedInfo', async (req, res) => {
       tokenExpiry: embedTokenData.expiration,
       reportName: reportDetails.name,
       tokenId: embedTokenData.tokenId,
+      datasetId: reportDetails.datasetId,
+      filters: filters,
       generatedAt: new Date().toISOString()
     };
     
@@ -126,9 +218,9 @@ app.get('/api/getEmbedInfo', async (req, res) => {
     res.json(embedInfo);
   } catch (error) {
     console.error('Error in /api/getEmbedInfo:', error.message);
-    res.status(500).json({ 
+    res.status(500).json({
       error: 'Failed to get embed information',
-      message: error.message 
+      message: error.message
     });
   }
 });

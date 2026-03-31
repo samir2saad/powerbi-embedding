@@ -68,7 +68,7 @@
                             expanded: false,
                             visible: false
                         },
-                        //to hide navigation bar if we need to show one single page 
+                        //to hide navigation bar if we need to show one single page
                         pageNavigation: {
                             visible: true
                         }
@@ -88,6 +88,12 @@
                     navContentPaneEnabled: false
                 }
             };
+
+            // Apply filters if provided
+            if (embedData.filters && embedData.filters.length > 0) {
+                embedConfig.filters = embedData.filters;
+                console.log('✓ Applying filters to report:', embedData.filters);
+            }
 
             // Clear the container
             reportContainer.innerHTML = '';
@@ -144,9 +150,27 @@
             }, { passive: false });
 
             // Handle report load event
-            report.on('loaded', function() {
+            report.on('loaded', async function() {
                 console.log('✓ Report loaded successfully');
                 updateStatus('success', 'Report loaded successfully');
+                
+                // Verify filters were applied
+                try {
+                    const appliedFilters = await report.getFilters();
+                    console.log('✓ Current filters on report:', appliedFilters);
+                    
+                    if (appliedFilters.length === 0) {
+                        console.warn('⚠️ No filters are currently applied to the report!');
+                        console.warn('⚠️ This could mean:');
+                        console.warn('   1. Table or column name is incorrect (case-sensitive)');
+                        console.warn('   2. Value type mismatch (number vs string)');
+                        console.warn('   3. The value does not exist in the dataset');
+                    } else {
+                        console.log('✅ Filters successfully applied:', appliedFilters.length);
+                    }
+                } catch (filterError) {
+                    console.error('❌ Error checking filters:', filterError);
+                }
                 
                 // Disable zoom after report loads
                 report.updateSettings({
@@ -187,7 +211,34 @@
         try {
             updateStatus('loading', 'Fetching embed token...');
             
-            const response = await fetch('/api/getEmbedInfo');
+            // Define filters to apply to the report
+            // Example filter structure - customize based on your report's tables and columns
+            
+            // IMPORTANT: Try both numeric and string values
+            // If id is a number column, use: [27]
+            // If id is a text column, use: ["27"]
+            const filters = [
+                {
+                    $schema: "http://powerbi.com/product/schema#basic",
+                    target: {
+                        table: "defaultdb workspaces",
+                        column: "id"
+                    },
+                    operator: "In",
+                    values: [140],  // Try numeric first (change to ["27"] if id is text)
+                    filterType: 1  // 1 = BasicFilter, 0 = AdvancedFilter
+                }
+            ];
+            
+            console.log('🔍 Filter Configuration:', JSON.stringify(filters, null, 2));
+            
+            const response = await fetch('/api/getEmbedInfo', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ filters: filters })
+            });
             
             if (!response.ok) {
                 const errorData = await response.json();
@@ -198,7 +249,8 @@
             console.log('✓ Embed information received:', {
                 reportId: data.reportId,
                 reportName: data.reportName,
-                tokenExpiry: data.tokenExpiry
+                tokenExpiry: data.tokenExpiry,
+                filtersApplied: data.filters ? data.filters.length : 0
             });
             
             updateStatus('loading', 'Embedding report...');
